@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0b1418">
+  <meta name="description" content="Push your luck into the storm. A live multiplayer game for 2–8 crews.">
+  <title>Gridlock · Storm Chasers</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script defer src="/socket.io/socket.io.js"></script>
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header class="masthead"><a class="brand" href="/" aria-label="Gridlock home">G<span class="brand-line">/</span> GRIDLOCK <small>STORM CHASERS</small></a><span id="connection" class="connection" role="status">Connecting…</span></header>
+  <main>
+    <section id="home" class="home">
+      <div class="intro"><p class="eyebrow">FIELD OPERATIONS / 001</p><h1>Chase the storm.<br><em>Know when to leave.</em></h1><p class="lede">Collect telemetry. Read the risk. Get your crew home before the storm takes it all.</p>
+        <div class="radar" aria-hidden="true"><div class="radar-sweep"></div><span class="radar-point p1"></span><span class="radar-point p2"></span><span class="radar-label">SECTOR 07 / ACTIVE</span></div>
+        <div class="facts"><span><b>2–8</b> CREWS</span><span><b>3</b> STORMS</span><span><b>15s</b> TO DECIDE</span></div>
+      </div>
+      <div class="panel join-panel"><p class="eyebrow">ESTABLISH UPLINK</p><h2>Your crew. Your call.</h2><p class="muted">No account. Just a name and a room code.</p>
+        <form id="entry-form"><label for="name">CREW NAME</label><input id="name" name="name" maxlength="20" placeholder="e.g. Night Owls" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" required>
+          <button id="create" class="button primary" type="submit">Create a room <span>↗</span></button>
+          <div class="divider">OR JOIN YOUR CREW</div><label for="code">ROOM CODE</label><div class="join-row"><input id="code" name="code" maxlength="4" placeholder="ABCD" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false"><button id="join" class="button secondary" type="button">Join room</button></div>
+        </form>
+        <details><summary>Mission briefing</summary><p>Telemetry is split between active crews. Push deeper for more, or extract to bank your points. A second hazard of the same type wipes active crews’ unbanked data.</p><p>Extract alone on a turn to claim all salvage. Each non-busting hazard adds 8 damaged-drone salvage points. If several crews extract, salvage stays. No choice in 15 seconds? You automatically extract. Highest banked score after three storms wins.</p></details>
+      </div>
+    </section>
+    <section id="room" hidden>
+      <div class="room-bar"><div><p class="eyebrow">PRIVATE EXPEDITION</p><button id="copy" class="code-button" title="Copy room code"><span id="room-code"></span> <small>COPY CODE</small></button></div><button id="leave" class="button quiet">Leave room</button></div>
+      <section id="lobby" class="panel lobby" hidden><div><p class="eyebrow">PRE-FLIGHT CHECK</p><h1>Assemble your crew.</h1><p class="muted">Share the room code. Every crew joins on their own screen.</p></div><div><p id="lobby-message"></p><button id="start" class="button primary">Launch expedition ↗</button></div></section>
+      <div id="mission" class="mission" hidden>
+        <section class="panel field"><div class="field-top"><div class="field-badges"><span id="storm-label" class="tag"></span><span id="turn-label" class="tag"></span><span id="deck-label" class="tag"></span></div><span id="phase-label" class="tag"></span></div>
+          <div id="card" class="card"><p id="card-type" class="eyebrow"></p><div id="card-symbol" class="card-symbol" aria-hidden="true"></div><h1 id="card-title"></h1><p id="card-description" class="muted"></p></div>
+          <div class="field-stats"><div><span>SALVAGE CACHE</span><strong id="salvage"></strong></div><div><span>YOUR UNBANKED DATA</span><strong id="unbanked"></strong></div><div><span>SAFELY BANKED</span><strong id="banked"></strong></div></div>
+          <div id="hazards" class="hazards"></div><p id="warning" class="warning"></p>
+        </section>
+        <aside class="panel decisions"><p class="eyebrow">CREW COMMAND</p><div class="clock"><strong id="timer">15</strong><span id="timer-caption">SECONDS TO DECIDE</span></div><h2 id="decision-title"></h2><p id="decision-detail" class="muted"></p><div id="decision-dock" class="decision-dock"><div class="dock-overview"><p id="extract-preview"></p><span id="dock-clock"></span></div><div id="decision-buttons" class="decision-buttons"><button id="push" class="button primary"><span class="button-lines"><span id="push-label">Push deeper</span><small id="push-risk"></small></span><span aria-hidden="true">↗</span></button><button id="extract" class="button secondary">Extract to base <span>↓</span></button></div></div><div id="status-summary" class="status-summary" hidden><p id="status-summary-label" class="eyebrow"></p><p id="status-summary-text"></p><div id="receipt" class="receipt" hidden><p id="receipt-label" class="eyebrow"></p><dl><div><dt>Telemetry</dt><dd id="receipt-telemetry"></dd></div><div><dt>Solo salvage</dt><dd id="receipt-salvage"></dd></div><div class="receipt-total"><dt>Banked this turn</dt><dd id="receipt-total"></dd></div><div><dt>Banked overall</dt><dd id="receipt-banked"></dd></div></dl></div></div><p id="decision-help" class="fine">Decisions stay hidden until everyone locks in. Timer expires? You extract automatically.</p></aside>
+      </div>
+      <section id="results" class="panel results" hidden><p class="eyebrow">EXPEDITION COMPLETE</p><h1 id="winner"></h1><p class="muted">Three storms. Every banked point earned.</p><button id="rematch" class="button primary">Launch a rematch ↗</button><p id="rematch-note"></p></section>
+      <section class="panel roster-panel"><div class="roster-header"><h2>Crews in the field</h2><span id="crew-count" class="eyebrow"></span></div><div class="table-wrap"><table><thead><tr><th>Crew</th><th>Status</th><th>Unbanked</th><th>Banked</th><th>Decision</th></tr></thead><tbody id="players"></tbody></table></div></section>
+      <div class="event-log"><span class="eyebrow">TRANSMISSION</span><p id="event" role="status" aria-live="polite"></p></div>
+    </section>
+    <p id="notice" class="notice" role="alert" hidden></p>
+  </main>
+  <footer><span>GRIDLOCK / STORM CHASERS</span><span>FORTUNE FAVORS THE CREW THAT MAKES IT HOME.</span></footer>
+</body>
+</html>

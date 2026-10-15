@@ -46,6 +46,19 @@ $('join').addEventListener('click', () => {
   if (!$('entry-form').reportValidity()) return;
   action(async () => adopt(await request('join_room', { name: $('name').value, roomCode: $('code').value })));
 });
+for (const [id,event] of [['practice','practice'],['quick-play','quick_play']]) {
+  $(id).addEventListener('click', () => {
+    if (!$('entry-form').reportValidity()) return;
+    action(async () => adopt(await request(event, { name: $('name').value })));
+  });
+}
+$('wait-practice').addEventListener('click', () => action(async () => {
+  const me = state.players.find(p => p.id === session?.playerId);
+  adopt(await request('practice', { name: me.name }));
+}));
+for (const [id,reaction] of [['ready','READY'],['gg','GG'],['escape','ESCAPE'],['again','AGAIN']]) {
+  $(`react-${id}`).addEventListener('click', () => action(() => request('react', { reaction })));
+}
 $('code').addEventListener('keydown', event => {
   if (event.key === 'Enter') { event.preventDefault(); $('join').click(); }
 });
@@ -73,28 +86,38 @@ function render() {
   $('connection').textContent = online ? 'Uplink connected' : 'Reconnecting…';
   $('connection').classList.toggle('online', online);
   $('home').hidden = !!state; $('room').hidden = !state;
-  for (const id of ['create', 'join', 'leave']) $(id).disabled = busy || !online;
+  for (const id of ['create', 'join', 'leave', 'practice', 'quick-play', 'wait-practice', 'react-ready', 'react-gg', 'react-escape', 'react-again']) $(id).disabled = busy || !online;
   if (!state) return;
   const me = state.players.find(p => p.id === session?.playerId);
   const lobby = state.phase === 'LOBBY', over = state.phase === 'GAME_OVER';
+  const publicRoom = state.mode === 'PUBLIC';
+  $('mode-label').textContent = state.mode === 'PRACTICE' ? 'PRACTICE · COMPUTER OPPONENTS' : publicRoom ? 'PUBLIC QUICK PLAY · HUMAN CREWS' : 'PRIVATE EXPEDITION';
   $('room-code').textContent = state.roomCode;
+  $('wait-practice').hidden = !(publicRoom && lobby);
+  $('lobby-title').textContent = publicRoom ? 'Finding your crew.' : 'Assemble your crew.';
+  $('lobby-description').textContent = publicRoom ? 'Human players only. Starts automatically 10 seconds after a second crew arrives. No one online? Practice is ready now.' : 'Share the room code. Every crew joins on their own screen.';
   $('lobby').hidden = !lobby; $('mission').hidden = lobby || over; $('results').hidden = !over;
   const connected = state.players.filter(p => p.connected).length;
   $('crew-count').textContent = `${connected} CONNECTED / ${state.players.length} CREWS`;
   $('lobby-message').textContent = me?.isHost ? `${connected}/8 crews connected. ${connected < 2 ? 'Waiting for one more crew.' : 'Ready when you are.'}` : 'Waiting for the host to launch.';
+  if (publicRoom && lobby) $('lobby-message').textContent = state.queueRemaining === null ? 'Waiting for another human player. No bots will be added.' : `${connected} crews ready. Starting in ${state.queueRemaining}s…`;
   for (const id of ['start', 'rematch']) {
-    $(id).hidden = !me?.isHost;
+    $(id).hidden = !me?.isHost || (id === 'start' && publicRoom);
     $(id).disabled = busy || !online || connected < 2;
   }
   $('rematch-note').textContent = me?.isHost ? (connected < 2 ? 'A second connected crew is needed for a rematch.' : 'Rematch resets scores for connected crews.') : 'Waiting for the host to launch a rematch.';
   const sorted = over ? [...state.players].sort((a, b) => b.bankedScore - a.bankedScore) : state.players;
   $('players').replaceChildren(...sorted.map(p => {
     const row = document.createElement('tr');
-    cell(row, `${p.name}${p.id === me?.id ? ' · YOU' : ''}${p.isHost ? ' · HOST' : ''}`, p.id === me?.id ? 'you' : '');
+    cell(row, `${p.name}${p.id === me?.id ? ' · YOU' : ''}${p.isHost ? ' · HOST' : ''}${p.isBot ? ' · BOT' : ''}`, p.id === me?.id ? 'you' : '');
     cell(row, !p.connected ? 'OFFLINE' : lobby ? 'READY' : p.status);
-    cell(row, p.unbankedScore); cell(row, p.bankedScore);
+    cell(row, p.unbankedScore); cell(row, p.bankedScore); cell(row, p.sessionWins ?? 0);
     cell(row, state.phase === 'DECISION' ? (p.status !== 'ACTIVE' ? '—' : p.hasLockedChoice ? 'LOCKED ✓' : 'Choosing…') : p.lastChoice ?? '—');
     return row;
+  }));
+  $('social-panel').hidden = !(lobby || over);
+  $('reaction-feed').replaceChildren(...(state.reactions ?? []).map(r => {
+    const line = document.createElement('p'); line.textContent = `${r.name}: ${r.text}`; return line;
   }));
   $('event').textContent = state.lastEventLog;
   if (over) {

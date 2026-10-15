@@ -16,7 +16,7 @@ export function makeDeck() {
 }
 
 export function makeRoom(roomCode) {
-  return { roomCode, phase: 'LOBBY', stormNumber: 0, maxStorms: 3,
+  return { roomCode, mode: 'PRIVATE', reactions: [], queueDeadline: null, phase: 'LOBBY', stormNumber: 0, maxStorms: 3,
     currentCard: null, activeHazards: [], salvageCache: 0, deadline: null,
     stormBusted: false, stormLosses: [],
     turnNumber: 0, turnId: 0, lastEventLog: 'Assemble your crew. Two players minimum.',
@@ -137,7 +137,9 @@ export function snapshot(room, now = Date.now()) {
   const bustRiskPercent = cardsRemaining > 0 && ['DECISION', 'TURN_SUMMARY'].includes(room.phase)
     ? Math.round(new Set(room.activeHazards).size / cardsRemaining * 100) : 0;
   return {
-    roomCode: room.roomCode, phase: room.phase, stormNumber: room.stormNumber,
+    roomCode: room.roomCode, mode: room.mode, phase: room.phase, stormNumber: room.stormNumber,
+    queueRemaining: room.queueDeadline ? Math.max(0, Math.ceil((room.queueDeadline - now) / 1000)) : null,
+    reactions: room.reactions.map(r => ({ ...r })),
     maxStorms: room.maxStorms, currentCard: room.currentCard ? { ...room.currentCard } : null,
     activeHazards: [...room.activeHazards], hazardWarning: warnings.join(' '),
     salvageCache: room.salvageCache,
@@ -152,7 +154,7 @@ export function snapshot(room, now = Date.now()) {
       unbankedScore: p.unbankedScore, bankedScore: p.bankedScore,
       hasLockedChoice: room.choices.has(p.id),
       lastChoice: room.phase === 'DECISION' ? null : p.lastChoice,
-      connected: p.connected,
+      connected: p.connected, isBot: !!p.isBot, sessionWins: p.sessionWins ?? 0,
       extractionReceipt: p.extractionReceipt ? { ...p.extractionReceipt } : null,
     })),
   };

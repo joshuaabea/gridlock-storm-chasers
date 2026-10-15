@@ -30,3 +30,5 @@
 @media(max-width:360px){.field-badges .tag{font-size:8px;padding:5px}.field-top>.tag{padding:5px}.decision-buttons .button{font-size:12px}.dock-overview p{font-size:11px}}
 
 #status-summary-text{font-size:13px;color:var(--muted);margin:0;overflow-wrap:anywhere}
+
+.play-modes{display:grid;gap:10px;margin-top:14px}.play-modes .button{display:flex;justify-content:space-between;flex-wrap:wrap}.play-modes small{font:9px var(--mono);letter-spacing:.7px}.social-panel{padding:20px 24px;margin-bottom:20px}.reaction-buttons{display:flex;gap:8px;flex-wrap:wrap}.reaction-buttons .button{min-height:40px;font-size:12px}.reaction-feed{font-size:13px;color:var(--muted);overflow-wrap:anywhere}.reaction-feed p{margin:8px 0 0}#wait-practice{margin:12px 0}#mode-label{max-width:260px}

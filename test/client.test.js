@@ -52,6 +52,16 @@ test('client renders risk/losses and replaces actions with status cards outside 
   assert.equal(nodes.get('warning').textContent,'Catastrophic failure! Active crews wiped.');
   handlers.state_update({...state,phase:'STORM_END'});
   assert.equal(nodes.get('decision-title').textContent,'Safely extracted.');
+  handlers.state_update({...state,mode:'PUBLIC',phase:'LOBBY',queueRemaining:null});
+  assert.equal(nodes.get('start').hidden,true);
+  assert.equal(nodes.get('wait-practice').hidden,false);
+  assert.match(nodes.get('lobby-message').textContent,/No bots/);
+  assert.equal(nodes.get('social-panel').hidden,false);
+  handlers.state_update({...state,mode:'PUBLIC',phase:'LOBBY',queueRemaining:7});
+  assert.match(nodes.get('lobby-message').textContent,/Starting in 7s/);
+  handlers.state_update({...state,mode:'PRACTICE'});
+  assert.match(nodes.get('mode-label').textContent,/COMPUTER OPPONENTS/);
+  assert.equal(nodes.get('social-panel').hidden,true);
   for(const id of ['name','code']) {
     const tag = html.match(new RegExp(`<input id="${id}"[^>]+>`))[0];
     for(const attribute of ['autocomplete="off"','autocorrect="off"','autocapitalize="characters"','spellcheck="false"']) assert.ok(tag.includes(attribute));

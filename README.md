@@ -80,7 +80,7 @@ Deploy this folder to a **persistent, single-instance Node.js host** with WebSoc
 
 The package start command is `node server.js`. The entry point reads `process.env.PORT || 3000` and binds to `0.0.0.0`; `/health` returns `{ "ok": true }`. Terminate HTTPS at your host or reverse proxy and forward WebSocket upgrades and ordinary HTTP requests to the same process. If `PUBLIC_ORIGIN` is unset, browser handshake origins must match the request Host header. Non-browser clients without an Origin header are allowed.
 
-Use one replica. An in-memory Map is not shared across processes; sticky routing alone is not a complete replacement for shared game state. Deploys and restarts erase running matches. Avoid hosts that suspend the process between requests. This project has not been deployed to a public host.
+Use one replica. An in-memory Map is not shared across processes; sticky routing alone is not a complete replacement for shared game state. Deploys and restarts erase running matches. Avoid hosts that suspend the process between requests. Public service: https://gridlock-storm-chasers.onrender.com (single Render instance).
 
 Basic limits are included: 20-character names, unique names within a room, 4 KB Socket.IO messages, 40 acknowledged requests per socket per 10 seconds, and 500 rooms. These are application guardrails, not a comprehensive distributed abuse-control system.
 
@@ -95,7 +95,7 @@ Basic limits are included: 20-character names, unique names within a room, 4 KB 
 
 ## Validation delivered
 
-26 automated tests pass, including full three-storm progression, host-only controls, private choices, room isolation, eight-player capacity, stale/duplicate rejection, disconnect/resume, timers, cleanup, and rematch. Static HTML/CSS and the local Socket.IO client are served in the HTTP integration checks. Client JavaScript passes Node's syntax check; a DOM-stub test exercises risk labels, extraction previews, receipt displays, input attributes, and action/status visibility. The root server.js was also launched with a custom PORT and returned a successful health check.
+33 automated tests pass, including full three-storm progression, host-only controls, private choices, room isolation, eight-player capacity, stale/duplicate rejection, disconnect/resume, timers, cleanup, and rematch. Static HTML/CSS and the local Socket.IO client are served in the HTTP integration checks. Client JavaScript passes Node's syntax check; a DOM-stub test exercises risk labels, extraction previews, receipt displays, input attributes, and action/status visibility. The root server.js was also launched with a custom PORT and returned a successful health check.
 
 Visual browser QA and real-device testing were not available in the build environment. The UI includes mobile breakpoints, semantic controls, keyboard focus states, live status messages, horizontal scrolling for narrow scoreboards, and reduced-motion styling, but these still need a browser/device review before a public launch.
 
@@ -110,7 +110,7 @@ Visual browser QA and real-device testing were not available in the build enviro
 
 Deployment settings: Node web service; build `npm ci --omit=dev`; start `npm start`; health check `/health`; one instance. The repository root must be the folder containing package.json and server.js, not its parent. Commit package-lock.json; do not commit node_modules. Set PUBLIC_ORIGIN to the exact HTTPS origin if needed behind the host proxy.
 
-For Render, select the Free instance deliberately if using a demo tier. Free instances can sleep after 15 minutes without inbound traffic and can restart; every process restart loses this game's in-memory rooms. Wake-up is typically about a minute. This package has not been publicly deployed or tested over cellular. See https://render.com/docs/free and https://render.com/docs/deploy-node-express-app.
+For Render, select the Free instance deliberately if using a demo tier. Free instances can sleep after 15 minutes without inbound traffic and can restart; every process restart loses this game's in-memory rooms. Wake-up is typically about a minute. The original private-room flow was verified on the public service; users also tested browser and phone play. This release adds the modes described below. See https://render.com/docs/free and https://render.com/docs/deploy-node-express-app.
 
 Once deployed, run this acceptance pass:
 
@@ -124,3 +124,14 @@ Once deployed, run this acceptance pass:
 8. Restart the service and confirm the expired session returns players to create/join with a clear message. Old rooms are not expected to survive.
 
 Record public URL, devices, browser versions, and results before marking cross-network verification complete.
+
+## Practice, public matchmaking, and room social features
+
+- **Practice:** one human plus two visibly labeled computer crews (Scout and Vortex), starting immediately. Bots decide using only public risk, unbanked points, salvage, and random variation. Their plans are made before human choices are revealed. They cannot host or authenticate as a human. Practice is isolated from matchmaking.
+- **Quick Play:** joins the oldest available PUBLIC lobby, or opens one. PRIVATE and PRACTICE rooms are never discovered by this route. The server starts a 10-second countdown at two connected humans and cancels it if the count drops below two. Up to eight players may join; it does not wait for eight. Disconnecting in the public waiting lobby removes the seat; re-enter Quick Play to queue again. In-game reconnection works normally.
+- **Empty queue:** explains that it is waiting for another human and offers an explicit Practice button. Bots are never silently inserted. Switching to practice atomically leaves the waiting public lobby.
+- **Session wins:** each highest-scoring player earns one win at GAME_OVER, including ties. Wins survive rematches and reconnection in the same room, and are shown beside the current match scores. They are not global rankings and do not persist across room/session removal or process restarts. Practice wins stay within that practice room.
+- **Reactions:** four server-validated presets (Ready to chase!, Good game!, Nice escape!, One more?) in lobby/results only. Three-second per-player cooldown; six latest signals retained per room; no arbitrary text or global chat. Signals reset at a new match.
+- Bots do not keep a room alive after its last human disconnects. The existing two-minute abandoned-room cleanup applies.
+
+Additional acknowledged socket events: `practice: {name}`, `quick_play: {name}`, `react: {reaction: READY|GG|ESCAPE|AGAIN}`. Snapshots add `mode`, `queueRemaining` (null without an active queue countdown), `reactions`, and player `isBot`/`sessionWins`. Existing private-room events and scoring remain compatible.

@@ -157,3 +157,64 @@ test('extracted crew reconnects with the same banked score and authoritative rec
   assert.equal(after.status,'EXTRACTED');
   assert.deepEqual(after.extractionReceipt,before.extractionReceipt);
 });
+
+test('public queue excludes private rooms, starts with two humans, and cancels on disconnect', async t => {
+  const { server,client } = await setup(t,{queueMs:150});
+  const privateClient=await client(); const priv=await req(privateClient,'create_room',{name:'Private'});
+  const a=await client(),b=await client();
+  const qa=await req(a,'quick_play',{name:'Same'});
+  assert.notEqual(qa.roomCode,priv.roomCode); assert.equal(qa.state.mode,'PUBLIC');
+  assert.equal(qa.state.queueRemaining,null);
+  const qb=await req(b,'quick_play',{name:'Same'});
+  assert.equal(qb.roomCode,qa.roomCode); assert.equal(qb.state.players.length,2);
+  assert.equal(qb.state.players[1].name,'Same #2');
+  assert.equal((await req(a,'start_game')).ok,false);
+  b.disconnect(); await until(()=>a.latest.players.length===1);
+  assert.equal(server.rooms.get(qa.roomCode).queueDeadline,null);
+  const c=await client(); await req(c,'quick_play',{name:'Third'});
+  await until(()=>a.latest.phase==='DECISION');
+  assert.ok(a.latest.players.every(p=>!p.isBot)); assert.equal(privateClient.latest.phase,'LOBBY');
+});
+
+test('practice starts immediately with two labeled bots, locks their decisions, and excludes strangers', async t => {
+  const { client } = await setup(t,{botDelayMs:30});
+  const a=await client();const r=await req(a,'practice',{name:'Pilot'});
+  assert.equal(r.ok,true);assert.equal(r.state.mode,'PRACTICE');assert.equal(r.state.phase,'DECISION');
+  assert.equal(r.state.players.filter(p=>p.isBot).length,2);
+  await until(()=>a.latest.players.filter(p=>p.isBot).every(p=>p.hasLockedChoice));
+  assert.ok(a.latest.players.filter(p=>p.isBot).every(p=>p.lastChoice===null));
+  const b=await client();assert.equal((await req(b,'join_room',{name:'Intruder',roomCode:r.roomCode})).ok,false);
+  await req(a,'submit_choice',{choice:'EXTRACT',turnId:a.latest.turnId});
+  assert.ok(['TURN_SUMMARY','STORM_END'].includes(a.latest.phase));
+});
+
+test('practice fallback explicitly leaves public queue and bots do not keep abandoned rooms alive', async t => {
+  const { server,client } = await setup(t,{emptyTtlMs:50});
+  const a=await client();const queued=await req(a,'quick_play',{name:'Pilot'});
+  const practice=await req(a,'practice',{name:'Pilot'});
+  assert.notEqual(practice.roomCode,queued.roomCode);assert.equal(practice.state.mode,'PRACTICE');
+  a.disconnect();await until(()=>!server.rooms.has(practice.roomCode));
+});
+
+test('preset reactions are scoped, rate-limited, and forbidden during games', async t => {
+  const { client }=await setup(t);const {a,b}=await pair(client);
+  const elsewhere=await client();await req(elsewhere,'create_room',{name:'Elsewhere'});
+  assert.equal((await req(a,'react',{reaction:'<script>alert(1)</script>'})).ok,false);
+  assert.equal((await req(a,'react',{reaction:'READY'})).ok,true);
+  await until(()=>b.latest.reactions.length===1);
+  assert.equal(b.latest.reactions[0].text,'Ready to chase!');assert.equal(elsewhere.latest.reactions.length,0);
+  assert.equal((await req(a,'react',{reaction:'GG'})).ok,false);
+  await req(a,'start_game');assert.equal((await req(b,'react',{reaction:'GG'})).ok,false);
+});
+
+test('session wins increment once per finished match, survive rematch, and restore on reconnect', async t => {
+  const { client }=await setup(t,{decisionMs:50,summaryMs:20,stormEndMs:20});const {a,b,created}=await pair(client);
+  await req(a,'start_game');await until(()=>a.latest.phase==='GAME_OVER');
+  assert.deepEqual(a.latest.players.map(p=>p.sessionWins),[1,1]);
+  a.disconnect();await until(()=>!b.latest.players[0].connected);
+  const c=await client();const restored=await req(c,'resume_session',{roomCode:created.roomCode,token:created.token});
+  assert.equal(restored.state.players[0].sessionWins,1);
+  await req(b,'start_game');await until(()=>b.latest.phase==='DECISION');
+  assert.deepEqual(b.latest.players.map(p=>p.sessionWins),[1,1]);
+  await until(()=>b.latest.phase==='GAME_OVER');assert.deepEqual(b.latest.players.map(p=>p.sessionWins),[2,2]);
+});
